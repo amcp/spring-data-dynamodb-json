@@ -1,8 +1,23 @@
+/*
+ * Copyright 2016 Classmethod, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
 package jp.classmethod.aws.dynamodb;
 
 import jp.xet.sparwings.spring.data.repository.BaseRepository;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.repository.NoRepositoryBean;
 
 import java.io.Serializable;
@@ -25,10 +40,10 @@ public interface GetDeletableRepository<E, ID extends Serializable>extends BaseR
 	 * @throws IncorrectResultSizeDataAccessException  if the keys provided do not correspond with a record in the
 	 * database
 	 * @throws OptimisticLockingFailureException if the provided version does not match
-	 * @throws CapacityExceededException if the database throttles (refuses to service) the delete request
+	 * @throws QueryTimeoutException if the database throttles (refuses to service) the delete request
 	 * @throws NullPointerException if keys is null
 	 * @throws IllegalArgumentException if smaller than -1
 	 */
-	E getAndDelete(ID keys, long version) throws OptimisticLockingFailureException, CapacityExceededException,
+	E getAndDelete(ID keys, long version) throws OptimisticLockingFailureException, QueryTimeoutException,
 			IncorrectResultSizeDataAccessException;
 }

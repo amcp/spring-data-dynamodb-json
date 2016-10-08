@@ -1,14 +1,19 @@
 /*
- * Copyright 2015-2016 Classmethod, Inc.
- * All Rights Reserved.
+ * Copyright 2016 Classmethod, Inc. or its affiliates. All Rights Reserved.
+ * Portions copyright Amazon.com, Inc. or its affiliates.
  *
- * NOTICE:  All source code, documentation and other information
- * contained herein is, and remains the property of Classmethod, Inc.
- * Dissemination of this information or reproduction of this material
- * is strictly forbidden unless prior written permission is obtained
- * from Classmethod, Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
  */
-package jp.classmethod.aws.dynamodb; //NOPMD - contains got glass
+package jp.classmethod.aws.dynamodb; //NOPMD - contains god class
 
 import static com.amazonaws.util.BinaryUtils.copyAllBytesFrom;
 
@@ -27,10 +32,13 @@ import java.util.stream.Collectors;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.util.BinaryUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Maps;
 
 /**
  * Utilities that were copied from the DynamoDB SDK or belong in the DynamoDB SDK
+ *
+ * @since #version#
  */
 public class DynamoDbInternalUtils { //NOPMD - cyclomatic complexity high
 

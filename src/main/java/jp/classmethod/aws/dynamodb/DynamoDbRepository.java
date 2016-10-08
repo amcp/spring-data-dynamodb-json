@@ -1,3 +1,17 @@
+/*
+ * Copyright 2016 Classmethod, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
 package jp.classmethod.aws.dynamodb;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,7 +36,9 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.dao.InvalidDataAccessResourceUsageException;
+import org.springframework.dao.NonTransientDataAccessResourceException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.repository.NoRepositoryBean;
 
@@ -93,13 +109,9 @@ import jp.xet.sparwings.spring.data.repository.TruncatableRepository;
  * @since #version#
  *
  * This class contains the basic logic and implementations of some of the methods of the
- * MultiIndexBaseRepository interface, when the backing store is DynamoDB
- *
- * final play zone
+ * many BaseRepository interfaces, when the backing store is DynamoDB
  *
  * @param <E> the entity type to be persisted
- *
- * TODO some refactoring to pass the PMD GodClass validation
  */
 @Slf4j
 @NoRepositoryBean
@@ -344,8 +356,9 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 	}
 
 	@Override
-	public E findOne(K keys) throws DataAccessException {
-		Preconditions.checkNotNull(keys, "keys must not be null");
+	public E findOne(K keys) {
+		//interface specifies throw IllegalArgumentException so use checkArgument instead
+		Preconditions.checkArgument(keys != null, "keys must not be null");
 		//just read the item and return it
 		final Item item;
 		final PrimaryKey pk = createKeys(keys);
@@ -382,7 +395,10 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 		if (e instanceof ConditionalCheckFailedException) {
 			return conditionalSupplier.get();
 		} else if (e instanceof ProvisionedThroughputExceededException) {
-			return new DynamoDbThrottleException(String.format(Locale.ENGLISH, format, action, "throttling"), e);
+			return new QueryTimeoutException(String.format(Locale.ENGLISH, format, action, "throttling"), e);
+		} else if (e instanceof ResourceNotFoundException) {
+			return new NonTransientDataAccessResourceException(String.format(Locale.ENGLISH, format, action,
+					"table does not exist"), e);
 		} else if (e instanceof AmazonServiceException) {
 			AmazonServiceException ase = (AmazonServiceException) e;
 			if (VALIDATION_EXCEPTION.equals(((AmazonServiceException) e).getErrorCode())) {
@@ -597,7 +613,7 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 			}
 			return new OptimisticLockingFailureException(UPDATE_FAILED_NOT_FOUND_OR_BAD_VERSION, e);
 		} else if (e instanceof ProvisionedThroughputExceededException) {
-			throw new DynamoDbThrottleException(String.format(Locale.ENGLISH, format, "throttling"), e);
+			throw new QueryTimeoutException(String.format(Locale.ENGLISH, format, "throttling"), e);
 		} else if (e instanceof AmazonServiceException) {
 			AmazonServiceException ase = (AmazonServiceException) e;
 			if (VALIDATION_EXCEPTION.equals(ase.getErrorCode())) {
@@ -673,15 +689,14 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 		}
 		spec.withMaxPageSize(chunkable.getMaxPageSize()).withMaxResultSize(chunkable.getMaxPageSize());
 
-		final ItemCollection<ScanOutcome> results;
+		final ItemCollection<ScanOutcome> results = table.scan(spec);
 
+		final List<Item> itemList;
 		try {
-			results = table.scan(spec);
+			itemList = Lists.newArrayList(results.iterator());
 		} catch (AmazonClientException e) {
 			throw convertDynamoDBException(e, "scan", null /* conditionMessage */);
 		}
-
-		final List<Item> itemList = Lists.newArrayList(results.iterator());
 		final List<E> entities = itemList.stream()
 				.map(this::convertItemToDomain) //O(n)
 				.collect(Collectors.toList()); //O(n)
@@ -809,7 +824,9 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 
 	@Override
 	public <S extends E> S create(S domain) {
-		Preconditions.checkNotNull(domain, "domain must not be null");
+		if (domain == null) {
+			return null;
+		}
 		final Item domainItem = convertDomainToItem(domain);
 
 		// stackoverflow.com/questions/4460580/java-generics-why-someobject-getclass-doesnt-return-class-extends-t
