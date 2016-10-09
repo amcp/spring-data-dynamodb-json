@@ -42,6 +42,7 @@ import lombok.experimental.Accessors;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Book {
 	public static final String BOOK_ID = "book_id";
+	public static final String VERSION = "version";
 
 	@Setter(AccessLevel.PACKAGE)
 	@JsonProperty(BOOK_ID)
@@ -52,7 +53,7 @@ public class Book {
 	private String name;
 
 	@Setter(AccessLevel.PACKAGE)
-	@JsonProperty("version")
+	@JsonProperty(VERSION)
 	private Long version;
 
 	public Book(String name) {

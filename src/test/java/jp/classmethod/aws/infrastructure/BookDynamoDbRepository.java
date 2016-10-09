@@ -54,7 +54,7 @@ public class BookDynamoDbRepository extends DynamoDbRepository<Book, String> {
 								  ObjectMapper objectMapper) {
 		super(null /*prefix*/, TABLE_NAME, amazonDynamoDB, ImmutableMap.of(TABLE_NAME, throughput),
 				objectMapper, Book.class, ATTRIBUTE_TYPE_MAP, Collections.singletonList(Book.BOOK_ID),
-				null /*gsi list*/);
+				null /*gsi list*/, Book.VERSION);
 	}
 
 	@Override

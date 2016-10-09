@@ -135,8 +135,6 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 
 	private static final String VALIDATION_EXCEPTION = "ValidationException";
 
-	public static final String VERSION = "version";
-
 
 	private ProvisionedThroughput convert(ProvisionedThroughputDescription d) {
 		return new ProvisionedThroughput(d.getReadCapacityUnits(), d.getWriteCapacityUnits());
@@ -218,6 +216,8 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 
 	private final String tableNameSuffix;
 
+	private final String versionProperty;
+
 
 	/**
 	 * Create instance.
@@ -231,12 +231,14 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 	 * @param attributeDefinitions types of keys on base table and GSI
 	 * @param baseTableKeyNames names of base table keys
 	 * @param gsiList list of GSI definitions
+	 * @param versionString
 	 * @since #version#
 	 */
 	protected DynamoDbRepository(String prefix, String tableNameSuffix, AmazonDynamoDB amazonDynamoDB,
 								 Map<String, ProvisionedThroughput> provisionedThroughputMap, ObjectMapper objectMapper,
 								 Class<E> clazz, Map<String, ScalarAttributeType> attributeDefinitions,
-								 List<String> baseTableKeyNames, Map<String, GlobalSecondaryIndex> gsiList) {
+								 List<String> baseTableKeyNames, Map<String, GlobalSecondaryIndex> gsiList,
+								 String versionString) {
 		Preconditions.checkNotNull(amazonDynamoDB);
 		Preconditions.checkArgument(false == Strings.isNullOrEmpty(tableNameSuffix));
 		Preconditions.checkNotNull(provisionedThroughputMap);
@@ -255,6 +257,7 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 		this.clazz = clazz;
 		this.gsiHashKeys = new HashMap<>();
 		this.gsiRangeKeys = new HashMap<>();
+		this.versionProperty = Strings.isNullOrEmpty(versionString) ? null : versionString;
 		Optional.ofNullable(gsiList).orElse(new HashMap<>()).values().forEach(gsi -> {
 			final String indexName = gsi.getIndexName();
 			//make a copy
@@ -487,9 +490,10 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 		final Map<String, String> nameMap;
 
 		if (conditioning) {
+			Preconditions.checkState(versionProperty != null);
 			actualCondition = String.format(Locale.ENGLISH, "%s and #version = :v", conditionalDeleteCondition);
 			valueMap = Collections.singletonMap(":v", version);
-			nameMap = Collections.singletonMap("#version", VERSION);
+			nameMap = Collections.singletonMap("#version", versionProperty);
 		} else {
 			actualCondition = conditionalDeleteCondition;
 			valueMap = null;
@@ -582,13 +586,14 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 		//add a condition on item existence
 		builder.withCondition(ExpressionSpecBuilder.attribute_exists(hashKeyName));
 		//add update expression for incrementing the version
-		if (increment) {
-			builder.addUpdate(ExpressionSpecBuilder.N(VERSION)
-					.set(ExpressionSpecBuilder.N(VERSION).plus(1L)));
+		if (increment && versionProperty != null) {
+			builder.addUpdate(ExpressionSpecBuilder.N(versionProperty)
+					.set(ExpressionSpecBuilder.N(versionProperty).plus(1L)));
 		}
 		//add version condition
 		if (version >= 0) {
-			builder.withCondition(ExpressionSpecBuilder.N(VERSION).eq(version));
+			Preconditions.checkState(versionProperty != null);
+			builder.withCondition(ExpressionSpecBuilder.N(versionProperty).eq(version));
 		}
 
 		UpdateItemExpressionSpec spec = builder.buildForUpdate();
@@ -800,7 +805,8 @@ public abstract class DynamoDbRepository<E, K extends Serializable> implements I
 		ExpressionSpecBuilder builder = new ExpressionSpecBuilder();
 		builder.withCondition(ExpressionSpecBuilder.S(hashKeyName).exists());
 		if (condition != null) {
-			builder.withCondition(ExpressionSpecBuilder.N(VERSION).eq(condition.getVersion()));
+			Preconditions.checkState(versionProperty != null);
+			builder.withCondition(ExpressionSpecBuilder.N(versionProperty).eq(condition.getVersion()));
 		}
 		PutItemExpressionSpec xSpec = builder.buildForPut();
 		PutItemSpec spec = new PutItemSpec().withItem(domainItem).withExpressionSpec(xSpec);
